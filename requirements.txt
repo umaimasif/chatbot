@@ -1,0 +1,10 @@
+streamlit
+streamlit-chat
+langchain
+langchain-google-genai
+chromadb
+pypdf
+docx2txt
+tiktoken
+python-dotenv
+dotenv
