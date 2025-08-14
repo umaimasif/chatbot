@@ -9,6 +9,12 @@ from langchain.chains import ConversationalRetrievalChain
 import streamlit as st
 from streamlit_chat import message # pip install streamlit_chat
 
+import asyncio
+
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 
@@ -78,4 +84,3 @@ if st.session_state['generated']:
     for i in range(len(st.session_state['generated'])):
         message(st.session_state['generated'][i], key=str(i))
         message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
-        
