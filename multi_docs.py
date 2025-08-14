@@ -1,6 +1,6 @@
 import os
 from dotenv import find_dotenv, load_dotenv
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -51,7 +51,7 @@ qa_chain = ConversationalRetrievalChain.from_llm(
 
 
 #==== Streamlit front-end ====
-st.title("Docs QA Bot using Langchain")
+st.title("Docs QA Bot")
 st.header("Ask anything about your documents... 🤖")
 
 if 'generated' not in st.session_state:
@@ -78,3 +78,4 @@ if st.session_state['generated']:
     for i in range(len(st.session_state['generated'])):
         message(st.session_state['generated'][i], key=str(i))
         message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
+        

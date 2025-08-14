@@ -8,3 +8,4 @@ docx2txt
 tiktoken
 python-dotenv
 dotenv
+langchain-community
