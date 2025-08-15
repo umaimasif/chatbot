@@ -73,15 +73,14 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
+
+
 from langchain.schema import BaseRetriever
-import numpy as np
 
 class InMemoryRetriever(BaseRetriever):
-    def __init__(self):
-        super().__init__()  # BaseRetriever init
-        self._docs = []
-        self._embeddings = []
-        self._top_k = 5  # store as private attribute
+    _docs: list = []
+    _embeddings: list = []
+    _top_k: int = 5
 
     def set_memory(self, docs, embeddings, top_k=5):
         self._docs = docs
@@ -91,9 +90,12 @@ class InMemoryRetriever(BaseRetriever):
     def get_relevant_documents(self, query):
         if not self._docs or not self._embeddings:
             return []
-        query_embedding = embedding_model.embed_query(query)
-        sims = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
-                         for emb in self._embeddings])
+        query_emb = embedding_model.embed_query(query)
+        import numpy as np
+        sims = np.array([
+            np.dot(query_emb, emb) / (np.linalg.norm(query_emb) * np.linalg.norm(emb))
+            for emb in self._embeddings
+        ])
         top_idx = sims.argsort()[-self._top_k:][::-1]
         return [self._docs[i] for i in top_idx]
 
