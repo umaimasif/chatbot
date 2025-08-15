@@ -3,7 +3,7 @@ from dotenv import find_dotenv, load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 import docx2txt
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.schema import Document
@@ -78,12 +78,12 @@ if st.session_state['documents']:
     docs = text_splitter.split_documents(st.session_state['documents'])
 
     # Create vector DB
-    vectordb = Chroma.from_documents(
+    vectordb = FAISS.from_documents(
         documents=docs,
         embedding=embedding,
-        persist_directory='./data'
+     
     )
-    vectordb.persist()
+    #vectordb.persist()
 
     # Create QA chain
     qa_chain = ConversationalRetrievalChain.from_llm(
