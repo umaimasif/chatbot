@@ -76,24 +76,25 @@ from langchain.schema import BaseRetriever
 from typing import List
 from langchain.schema import Document
 
+from typing import List
+from langchain.schema import BaseRetriever, Document
+
 class InMemoryRetriever(BaseRetriever):
     docs: List[Document]
-    embeddings: list
-    top_k: int = 5
+    embeddings: List[List[float]]
+    top_k: int = 5  # default value
 
-    def __init__(self, docs, embeddings, top_k=5):
-        super().__init__()  # Important to call BaseRetriever init
-        self.docs = docs
-        self.embeddings = embeddings
-        self.top_k = top_k
-
-    def get_relevant_documents(self, query):
-        query_embedding = embedding_model.embed_query(query)
+    def get_relevant_documents(self, query: str) -> List[Document]:
         import numpy as np
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        
+        # You can use your already initialized embedding_model here
+        query_embedding = embedding_model.embed_query(query)
         sims = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
                          for emb in self.embeddings])
         top_idx = sims.argsort()[-self.top_k:][::-1]
         return [self.docs[i] for i in top_idx]
+
 
 retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
 # Process uploaded files
