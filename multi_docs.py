@@ -72,31 +72,34 @@ uploaded_files = st.file_uploader(
     type=['pdf', 'docx', 'txt'], 
     accept_multiple_files=True
 )
-from langchain.schema import BaseRetriever
-from typing import List
-from langchain.schema import Document
 
-from typing import List
-from langchain.schema import BaseRetriever, Document
+from langchain.schema import BaseRetriever
 
 class InMemoryRetriever(BaseRetriever):
-    docs: List[Document]
-    embeddings: List[List[float]]
-    top_k: int = 5  # default value
+    def __init__(self, top_k=5):
+        super().__init__()  # Call BaseRetriever init
+        self._docs = []      # private storage
+        self._embeddings = []
+        self.top_k = top_k
 
-    def get_relevant_documents(self, query: str) -> List[Document]:
-        import numpy as np
-        from langchain_google_genai import GoogleGenerativeAIEmbeddings
-        
-        # You can use your already initialized embedding_model here
+    def set_memory(self, docs, embeddings):
+        self._docs = docs
+        self._embeddings = embeddings
+
+    def get_relevant_documents(self, query):
+        if not self._docs or not self._embeddings:
+            return []
         query_embedding = embedding_model.embed_query(query)
         sims = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
-                         for emb in self.embeddings])
+                         for emb in self._embeddings])
         top_idx = sims.argsort()[-self.top_k:][::-1]
-        return [self.docs[i] for i in top_idx]
+        return [self._docs[i] for i in top_idx]
+
+# Initialize retriever without arguments
+retriever = InMemoryRetriever(top_k=5)
+retriever.set_memory(st.session_state['documents'], st.session_state['embeddings'])
 
 
-retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
 # Process uploaded files
 if uploaded_files:
     text_splitter = CharacterTextSplitter(chunk_size=1200, chunk_overlap=50)
