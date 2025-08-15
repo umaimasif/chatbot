@@ -74,17 +74,19 @@ uploaded_files = st.file_uploader(
 )
 
 from langchain.schema import BaseRetriever
+import numpy as np
 
 class InMemoryRetriever(BaseRetriever):
-    def __init__(self, top_k=5):
-        super().__init__()  # Call BaseRetriever init
-        self._docs = []      # private storage
+    def __init__(self):
+        super().__init__()  # BaseRetriever init
+        self._docs = []
         self._embeddings = []
-        self.top_k = top_k
+        self._top_k = 5  # store as private attribute
 
-    def set_memory(self, docs, embeddings):
+    def set_memory(self, docs, embeddings, top_k=5):
         self._docs = docs
         self._embeddings = embeddings
+        self._top_k = top_k
 
     def get_relevant_documents(self, query):
         if not self._docs or not self._embeddings:
@@ -92,12 +94,12 @@ class InMemoryRetriever(BaseRetriever):
         query_embedding = embedding_model.embed_query(query)
         sims = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
                          for emb in self._embeddings])
-        top_idx = sims.argsort()[-self.top_k:][::-1]
+        top_idx = sims.argsort()[-self._top_k:][::-1]
         return [self._docs[i] for i in top_idx]
 
-# Initialize retriever without arguments
-retriever = InMemoryRetriever(top_k=5)
-retriever.set_memory(st.session_state['documents'], st.session_state['embeddings'])
+# Usage
+retriever = InMemoryRetriever()
+retriever.set_memory(st.session_state['documents'], st.session_state['embeddings'], top_k=5)
 
 
 # Process uploaded files
