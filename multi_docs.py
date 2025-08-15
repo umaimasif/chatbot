@@ -73,9 +73,16 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 from langchain.schema import BaseRetriever
+from typing import List
+from langchain.schema import Document
 
 class InMemoryRetriever(BaseRetriever):
+    docs: List[Document]
+    embeddings: list
+    top_k: int = 5
+
     def __init__(self, docs, embeddings, top_k=5):
+        super().__init__()  # Important to call BaseRetriever init
         self.docs = docs
         self.embeddings = embeddings
         self.top_k = top_k
@@ -87,6 +94,7 @@ class InMemoryRetriever(BaseRetriever):
                          for emb in self.embeddings])
         top_idx = sims.argsort()[-self.top_k:][::-1]
         return [self.docs[i] for i in top_idx]
+
 retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
 # Process uploaded files
 if uploaded_files:
