@@ -2,7 +2,7 @@ streamlit
 streamlit-chat
 langchain
 langchain-google-genai
-chromadb==0.4.5
+FAISS
 pypdf
 docx2txt
 tiktoken
