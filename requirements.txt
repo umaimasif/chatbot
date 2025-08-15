@@ -5,5 +5,5 @@ langchain-google-genai
 python-dotenv
 pypdf
 docx2txt
-chromadb
+numpy
 langchain_community
