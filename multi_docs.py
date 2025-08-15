@@ -72,7 +72,22 @@ uploaded_files = st.file_uploader(
     type=['pdf', 'docx', 'txt'], 
     accept_multiple_files=True
 )
+from langchain.schema import BaseRetriever
 
+class InMemoryRetriever(BaseRetriever):
+    def __init__(self, docs, embeddings, top_k=5):
+        self.docs = docs
+        self.embeddings = embeddings
+        self.top_k = top_k
+
+    def get_relevant_documents(self, query):
+        query_embedding = embedding_model.embed_query(query)
+        import numpy as np
+        sims = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
+                         for emb in self.embeddings])
+        top_idx = sims.argsort()[-self.top_k:][::-1]
+        return [self.docs[i] for i in top_idx]
+retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
 # Process uploaded files
 if uploaded_files:
     text_splitter = CharacterTextSplitter(chunk_size=1200, chunk_overlap=50)
@@ -117,25 +132,21 @@ if user_input:
     relevant_docs = retrieve_relevant_docs(user_input)
     if relevant_docs:
         # Run LLM on top relevant docs
-        class InMemoryRetriever:
-             def __init__(self, docs):
-                self.docs = docs
-
-             def get_relevant_documents(self, query):
-               return self.docs
-
+        retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm,
-            retriever=InMemoryRetriever(relevant_docs), # Pass the docs directly
+            retriever=retriever,
             return_source_documents=True,
             verbose=False
         )
+
         result = qa_chain({'question': user_input, 'chat_history': st.session_state['chat_history']})
         st.session_state['chat_history'].append((user_input, result['answer']))
         st.session_state['past'].append(user_input)
         st.session_state['generated'].append(result['answer'])
     else:
         st.warning("No documents uploaded yet!")
+
 
 # Display chat
 if st.session_state['generated']:
