@@ -83,9 +83,8 @@ if st.session_state['documents']:
     vectordb = Chroma.from_documents(
         documents=st.session_state['documents'],
         embedding=embedding,
-        persist_directory='./data'
     )
-    vectordb.persist()
+    
 
     # Create QA chain
     qa_chain = ConversationalRetrievalChain.from_llm(
