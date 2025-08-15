@@ -2,10 +2,8 @@ streamlit
 streamlit-chat
 langchain
 langchain-google-genai
-FAISS
+python-dotenv
 pypdf
 docx2txt
-tiktoken
-python-dotenv
-dotenv
-langchain-community
+chromadb
+langchain_community
