@@ -3,13 +3,14 @@ from dotenv import find_dotenv, load_dotenv
 import docx2txt
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.schema import Document
+from langchain.schema import Document, BaseRetriever
 from langchain.chains import ConversationalRetrievalChain
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 import streamlit as st
 from streamlit_chat import message
 import asyncio
 import numpy as np
+import json
 
 # Setup asyncio loop for Streamlit
 try:
@@ -36,17 +37,14 @@ embedding_model = GoogleGenerativeAIEmbeddings(
 # Streamlit setup
 st.title("Docs QA Bot")
 st.header("Upload your documents and ask questions 🤖")
-import os
-import json
-from langchain.schema import Document
 
 CACHE_FILE = "uploaded_docs.json"
 
 def save_uploaded_docs(docs):
-    # Convert Document objects to dicts
     doc_dicts = [{"page_content": doc.page_content, "metadata": doc.metadata} for doc in docs]
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(doc_dicts, f, ensure_ascii=False, indent=2)
+
 def load_cached_docs():
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -56,9 +54,9 @@ def load_cached_docs():
 
 # Initialize session state
 if 'documents' not in st.session_state:
-    st.session_state['documents'] = []  # List of Document objects
+    st.session_state['documents'] = []
 if 'embeddings' not in st.session_state:
-    st.session_state['embeddings'] = []  # List of embedding vectors
+    st.session_state['embeddings'] = []
 if 'generated' not in st.session_state:
     st.session_state['generated'] = []
 if 'past' not in st.session_state:
@@ -73,10 +71,7 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-
-
-from langchain.schema import BaseRetriever
-
+# Custom in-memory retriever
 class InMemoryRetriever(BaseRetriever):
     _docs: list = []
     _embeddings: list = []
@@ -91,7 +86,6 @@ class InMemoryRetriever(BaseRetriever):
         if not self._docs or not self._embeddings:
             return []
         query_emb = embedding_model.embed_query(query)
-        import numpy as np
         sims = np.array([
             np.dot(query_emb, emb) / (np.linalg.norm(query_emb) * np.linalg.norm(emb))
             for emb in self._embeddings
@@ -99,10 +93,8 @@ class InMemoryRetriever(BaseRetriever):
         top_idx = sims.argsort()[-self._top_k:][::-1]
         return [self._docs[i] for i in top_idx]
 
-# Usage
 retriever = InMemoryRetriever()
 retriever.set_memory(st.session_state['documents'], st.session_state['embeddings'], top_k=5)
-
 
 # Process uploaded files
 if uploaded_files:
@@ -119,43 +111,27 @@ if uploaded_files:
             text = str(uploaded_file.read(), "utf-8")
             new_docs.append(Document(page_content=text))
 
-    # Split documents into chunks
     chunked_docs = text_splitter.split_documents(new_docs)
-
-    # Add to session memory
     st.session_state['documents'].extend(chunked_docs)
-
-    # Generate embeddings for new chunks and store
     new_embeddings = embedding_model.embed_documents([doc.page_content for doc in chunked_docs])
     st.session_state['embeddings'].extend(new_embeddings)
 
-    st.success(f"Loaded {len(chunked_docs)} new chunks. Total in memory: {len(st.session_state['documents'])}")
+    # Update retriever memory
+    retriever.set_memory(st.session_state['documents'], st.session_state['embeddings'], top_k=5)
 
-# Function to retrieve most relevant docs from memory
-def retrieve_relevant_docs(query, top_k=5):
-    if not st.session_state['documents']:
-        return []
-    query_embedding = embedding_model.embed_query(query)
-    # Compute cosine similarity
-    similarities = np.array([np.dot(query_embedding, emb)/(np.linalg.norm(query_embedding)*np.linalg.norm(emb))
-                             for emb in st.session_state['embeddings']])
-    top_indices = similarities.argsort()[-top_k:][::-1]
-    return [st.session_state['documents'][i] for i in top_indices]
+    st.success(f"Loaded {len(chunked_docs)} new chunks. Total in memory: {len(st.session_state['documents'])}")
 
 # Get user query
 user_input = st.chat_input("Ask a question about your documents...")
 if user_input:
-    relevant_docs = retrieve_relevant_docs(user_input)
+    relevant_docs = retriever.get_relevant_documents(user_input)
     if relevant_docs:
-        # Run LLM on top relevant docs
-        retriever = InMemoryRetriever(st.session_state['documents'], st.session_state['embeddings'])
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm,
             retriever=retriever,
             return_source_documents=True,
             verbose=False
         )
-
         result = qa_chain({'question': user_input, 'chat_history': st.session_state['chat_history']})
         st.session_state['chat_history'].append((user_input, result['answer']))
         st.session_state['past'].append(user_input)
@@ -163,9 +139,7 @@ if user_input:
     else:
         st.warning("No documents uploaded yet!")
 
-
 # Display chat
-if st.session_state['generated']:
-    for i in range(len(st.session_state['generated'])):
-        message(st.session_state['generated'][i], key=str(i))
-        message(st.session_state['past'][i], is_user=True, key=str(i)+'_user')
+for i in range(len(st.session_state['generated'])):
+    message(st.session_state['generated'][i], key=str(i))
+    message(st.session_state['past'][i], is_user=True, key=str(i)+'_user')
