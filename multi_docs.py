@@ -5,12 +5,13 @@ import docx2txt
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
-import streamlit as st
-from streamlit_chat import message  # pip install streamlit_chat
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain.schema import Document
+import streamlit as st
+from streamlit_chat import message
 import asyncio
 
-# Setup asyncio event loop for Streamlit
+# Setup asyncio loop
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -49,31 +50,30 @@ if 'chat_history' not in st.session_state:
 
 # File uploader
 uploaded_files = st.file_uploader(
-    "Upload your documents (PDF, DOCX, TXT)",
-    accept_multiple_files=True,
-    type=["pdf", "docx", "txt"]
+    "Upload PDF, DOCX, or TXT files",
+    type=['pdf', 'docx', 'txt'],
+    accept_multiple_files=True
 )
 
-# Process uploaded files and store in session_state
 if uploaded_files:
-    for uploaded_file in uploaded_files:
-        if uploaded_file.name not in [doc.get("name") for doc in st.session_state['documents']]:
-            if uploaded_file.type == "application/pdf":
-                loader = PyPDFLoader(uploaded_file)
-                pages = loader.load()
-                for page in pages:
-                    page.metadata["name"] = uploaded_file.name
-                st.session_state['documents'].extend(pages)
-            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                text = docx2txt.process(uploaded_file)
-                st.session_state['documents'].append({"page_content": text, "metadata": {"name": uploaded_file.name}})
-            elif uploaded_file.type == "text/plain":
-                text = uploaded_file.read().decode("utf-8")
-                st.session_state['documents'].append({"page_content": text, "metadata": {"name": uploaded_file.name}})
+    uploaded_documents = []
 
-# Only proceed if documents exist
+    for uploaded_file in uploaded_files:
+        if uploaded_file.type == "application/pdf":
+            loader = PyPDFLoader(uploaded_file)
+            uploaded_documents.extend(loader.load())
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            text = docx2txt.process(uploaded_file)
+            uploaded_documents.append(Document(page_content=text))
+        elif uploaded_file.type == "text/plain":
+            text = str(uploaded_file.read(), "utf-8")
+            uploaded_documents.append(Document(page_content=text))
+
+    st.session_state['documents'] = uploaded_documents
+
+# Only process if documents exist
 if st.session_state['documents']:
-    # Split documents into chunks
+    # Split documents
     text_splitter = CharacterTextSplitter(chunk_size=1200, chunk_overlap=10)
     docs = text_splitter.split_documents(st.session_state['documents'])
 
@@ -101,8 +101,8 @@ if st.session_state['documents']:
         st.session_state['past'].append(user_input)
         st.session_state['generated'].append(result['answer'])
 
-    # Display chat
-    if st.session_state['generated']:
-        for i in range(len(st.session_state['generated'])):
-            message(st.session_state['generated'][i], key=str(i))
-            message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
+# Display chat
+if st.session_state['generated']:
+    for i in range(len(st.session_state['generated'])):
+        message(st.session_state['generated'][i], key=str(i))
+        message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
