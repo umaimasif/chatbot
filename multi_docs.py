@@ -3,15 +3,15 @@ from dotenv import find_dotenv, load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 import docx2txt
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
+import streamlit as st
+from streamlit_chat import message  # pip install streamlit_chat
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.schema import Document
-import streamlit as st
-from streamlit_chat import message
 import asyncio
 
-# Setup asyncio loop
+# Setup asyncio event loop for Streamlit
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -50,40 +50,42 @@ if 'chat_history' not in st.session_state:
 
 # File uploader
 uploaded_files = st.file_uploader(
-    "Upload PDF, DOCX, or TXT files",
+    "Upload PDFs, Word, or Text files",
     type=['pdf', 'docx', 'txt'],
     accept_multiple_files=True
 )
 
 if uploaded_files:
-    uploaded_documents = []
-
+    new_docs = []
     for uploaded_file in uploaded_files:
         if uploaded_file.type == "application/pdf":
             loader = PyPDFLoader(uploaded_file)
-            uploaded_documents.extend(loader.load())
+            new_docs.extend(loader.load())
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             text = docx2txt.process(uploaded_file)
-            uploaded_documents.append(Document(page_content=text))
+            new_docs.append(Document(page_content=text))
         elif uploaded_file.type == "text/plain":
             text = str(uploaded_file.read(), "utf-8")
-            uploaded_documents.append(Document(page_content=text))
-
-    st.session_state['documents'] = uploaded_documents
-
-# Only process if documents exist
-if st.session_state['documents']:
-    # Split documents
+            new_docs.append(Document(page_content=text))
+    
+    # Split only the new documents
     text_splitter = CharacterTextSplitter(chunk_size=1200, chunk_overlap=10)
-    docs = text_splitter.split_documents(st.session_state['documents'])
+    new_chunks = text_splitter.split_documents(new_docs)
+    
+    # Append new chunks to existing session memory
+    st.session_state['documents'].extend(new_chunks)
+    
+    st.success(f"Loaded {len(new_chunks)} new chunks. Total in memory: {len(st.session_state['documents'])}")
 
-    # Create vector DB
-    vectordb = FAISS.from_documents(
-        documents=docs,
+# Only proceed if there are documents in memory
+if st.session_state['documents']:
+    # Create vector DB from all chunks in memory
+    vectordb = Chroma.from_documents(
+        documents=st.session_state['documents'],
         embedding=embedding,
-     
+        persist_directory='./data'
     )
-    #vectordb.persist()
+    vectordb.persist()
 
     # Create QA chain
     qa_chain = ConversationalRetrievalChain.from_llm(
